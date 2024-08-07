@@ -1,0 +1,7 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/.vs
+/SC4Disab.058acde6/Debug
+/packages/Microsoft.Windows.ImplementationLibrary.1.0.240122.1
