@@ -86,6 +86,27 @@ target_link_libraries(SC4DisableFpsLimits PRIVATE gzcom_dll version)
 
 set_target_properties(SC4DisableFpsLimits PROPERTIES OUTPUT_NAME "SC4DisableFpsLimits")
 
+option(SC4_DEPLOY_TO_PLUGINS "Copy the built DLL to the SimCity 4 Plugins folder after build." ON)
+set(
+    SC4_PLUGINS_DIR
+    "$ENV{USERPROFILE}/Documents/SimCity 4/Plugins"
+    CACHE PATH
+    "Path to the SimCity 4 Plugins folder."
+)
+
+if (SC4_DEPLOY_TO_PLUGINS)
+    add_custom_command(
+        TARGET SC4DisableFpsLimits
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${SC4_PLUGINS_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:SC4DisableFpsLimits>"
+            "${SC4_PLUGINS_DIR}/"
+        COMMENT "Deploying SC4DisableFpsLimits.dll to ${SC4_PLUGINS_DIR}"
+        VERBATIM
+    )
+endif ()
+
 if (MSVC)
     target_compile_options(
         gzcom_dll

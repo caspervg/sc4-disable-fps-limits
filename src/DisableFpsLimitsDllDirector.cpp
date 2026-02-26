@@ -57,7 +57,7 @@ namespace {
         }
 
         // Patch the memory at the specified address.
-        *((uint8_t*)address) = newValue;
+        *reinterpret_cast<uint8_t*>(address) = newValue;
     }
 
     void DisableFpsLimits(uint8_t maxFps) {
@@ -70,9 +70,9 @@ namespace {
 
                 LOG_INFO("Attempting to overwrite memory");
 
-                OverwriteMemory(0x70244a, maxFps);
-                OverwriteMemory(0x702457, maxFps);
-                OverwriteMemory(0x702462, maxFps);
+                OverwriteMemory(0x70244a, maxFps); // Cheetah speed
+                OverwriteMemory(0x702457, maxFps); // Rhino speed
+                OverwriteMemory(0x702462, maxFps); // Turtle speed
 
                 LOG_INFO("Disabled the FPS limits during simulation. MaxFPS={}", static_cast<unsigned int>(maxFps));
             }
@@ -90,7 +90,7 @@ namespace {
 class DisableFpsLimitsDllDirector final : public cRZCOMDllDirector {
 public:
     DisableFpsLimitsDllDirector() {
-        std::filesystem::path dllFolderPath = GetDllFolderPath();
+        const std::filesystem::path dllFolderPath = GetDllFolderPath();
         Logger::Initialize("SC4DisableFpsLimits", dllFolderPath);
         LOG_INFO("SC4DisableFpsLimits v{} loaded.", PLUGIN_VERSION_STR);
 
@@ -102,7 +102,7 @@ public:
                  spdlog::level::to_short_c_str(settings_.GetLogLevel()));
     }
 
-    uint32_t GetDirectorID() const override { return kDisableFpsLimitsDirectorID; }
+    [[nodiscard]] uint32_t GetDirectorID() const override { return kDisableFpsLimitsDirectorID; }
 
     bool OnStart(cIGZCOM* pCOM) override {
         DisableFpsLimits(settings_.GetMaxFps());
