@@ -19,7 +19,7 @@ std::shared_ptr<spdlog::logger> Logger::Get() {
 }
 
 void Logger::Initialize(const std::string& logName, const std::filesystem::path& logDirectory,
-                        spdlog::level::level_enum logLevel) {
+                        const spdlog::level::level_enum logLevel) {
     if (s_initialized && s_logger) {
         return;
     }
@@ -32,8 +32,8 @@ void Logger::Initialize(const std::string& logName, const std::filesystem::path&
 
         if (!logDirectory.empty()) {
             std::filesystem::create_directories(logDirectory);
-            std::filesystem::path logPath = logDirectory / (s_logName + ".log");
-            sinks.push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>(logPath.string(), false));
+            const std::filesystem::path logPath = logDirectory / (s_logName + ".log");
+            sinks.push_back(std::make_shared<spdlog::sinks::basic_file_sink_mt>(logPath.string(), true));
         }
 
         s_logger = std::make_shared<spdlog::logger>(s_logName, sinks.begin(), sinks.end());
@@ -44,7 +44,7 @@ void Logger::Initialize(const std::string& logName, const std::filesystem::path&
 
         s_logger->info("{} logger initialized", s_logName);
         if (!logDirectory.empty()) {
-            std::filesystem::path logPath = logDirectory / (s_logName + ".log");
+            const std::filesystem::path logPath = logDirectory / (s_logName + ".log");
             s_logger->info("Logging to file: {}", logPath.string());
         }
     }
@@ -58,7 +58,7 @@ void Logger::Initialize(const std::string& logName, const std::filesystem::path&
     }
 }
 
-void Logger::SetLevel(spdlog::level::level_enum logLevel) {
+void Logger::SetLevel(const spdlog::level::level_enum logLevel) {
     if (!s_initialized || !s_logger) {
         Initialize();
     }
