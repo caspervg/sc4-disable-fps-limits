@@ -1,0 +1,43 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 24,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "vs2022-win32",
+      "displayName": "VS2022 Win32",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "Win32",
+      "binaryDir": "${sourceDir}/build"
+    },
+    {
+      "name": "mingw-win32-cross",
+      "displayName": "MinGW Win32 Cross",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build-mingw",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/mingw-w64-i686.cmake"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "release",
+      "configurePreset": "vs2022-win32",
+      "configuration": "Release"
+    },
+    {
+      "name": "debug",
+      "configurePreset": "vs2022-win32",
+      "configuration": "Debug"
+    },
+    {
+      "name": "release-mingw",
+      "configurePreset": "mingw-win32-cross"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-# sc4-disable-fps-limits
+# SC4 Disable FPS Limits
 
 This DLL plugin for SimCity 4 disables the default FPS (frames per second) limitations during simulation speeds. By default, SimCity 4 imposes the following FPS limits:
 
@@ -29,18 +29,35 @@ The plugin may work on Windows 7 or later with the [Microsoft Visual C++ 2022 x8
 The plugin should write a `SC4DisableFpsLimits.log` file in the same folder as the plugin.    
 The log contains status information for the most recent run of the plugin.
 
+## Configuration
+
+The plugin reads optional settings from `SC4DisableFpsLimits.ini` in the same folder as the DLL.
+
+Example:
+
+```ini
+[SC4DisableFpsLimits]
+MaxFPS=255
+LogLevel=info
+```
+
+`MaxFPS` applies to Turtle, Rhino, and Cheetah simulation speeds.
+Values above `255` are capped to `255`.
+`LogLevel` controls log verbosity and defaults to `info`.
+Valid values are `trace`, `debug`, `info`, `warn`, `error`, `critical`, and `off`.
+
 # License
 
-This project is licensed under the terms of the MIT License.    
+This project is licensed under the terms of the GNU LGPL v2.1 or later.    
 See [LICENSE.txt](LICENSE.txt) for more information.
 
 ## 3rd party code
 
-[gzcom-dll](https://github.com/nsgomez/gzcom-dll/tree/master) Located in the vendor folder, MIT License.    
-[EABase](https://github.com/electronicarts/EABase) Located in the vendor folder, BSD 3-Clause License.    
-[EASTL](https://github.com/electronicarts/EASTL) Located in the vendor folder, BSD 3-Clause License.    
+[gzcom-dll](https://github.com/nsgomez/gzcom-dll) - GNU LGPL v2.1 or later.    
 [SC4Fix](https://github.com/nsgomez/sc4fix) - MIT License.     
-[Windows Implementation Library](https://github.com/microsoft/wil) - MIT License
+[spdlog](https://github.com/gabime/spdlog) - MIT License.    
+[mINI](https://github.com/metayeti/mINI) - MIT License.    
+[sc4-disable-network-construction-sounds](https://github.com/0xC0000054/sc4-disable-network-construction-sounds) - MIT License (project inspiration).    
 
 ## Credits
 
@@ -50,18 +67,35 @@ A lot of credits go to [Nicholas Hayes](https://github.com/0xC0000054), whose [D
 
 ## Prerequisites
 
-* Visual Studio 2022
+* CMake 3.24 or newer
+* A 32-bit MSVC toolchain (v143 recommended)
 
 ## Building the plugin
 
-* Open the solution in the `src` folder
-* Update the post build events to copy the build output to you SimCity 4 application plugins folder.
-* Build the solution
+1. Initialize third-party dependencies:
+   * `git submodule update --init --recursive`
+2. Configure (Windows x86, Visual Studio):
+   * `cmake --preset vs2022-win32`
+3. Build:
+   * `cmake --build --preset release`
+
+The resulting DLL is at `build/Release/SC4DisableFpsLimits.dll`.
+
+## Cross-compile from macOS/Linux (experimental)
+
+If MinGW-w64 is installed and available in `PATH`, you can attempt a Win32 cross-build:
+
+1. Configure:
+   * `cmake --preset mingw-win32-cross`
+2. Build:
+   * `cmake --build --preset release-mingw`
+
+The MinGW toolchain preset uses:
+* [mingw-w64-i686.cmake](/Users/vghelu49/CLionProjects/sc4-disable-fps-limits/cmake/toolchains/mingw-w64-i686.cmake)
 
 ## Debugging the plugin
 
-Visual Studio can be configured to launch SimCity 4 on the Debugging page of the project properties.
-I configured the debugger to launch the game in full screen with the following command line:    
+Attach a debugger to the SimCity 4 process or launch it from your debugger with:    
 `-intro:off -CPUcount:1 -w -CustomResolution:enabled -r1920x1080x32`
 
 You may need to adjust the resolution for your screen.

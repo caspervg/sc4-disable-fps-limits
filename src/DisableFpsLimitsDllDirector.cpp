@@ -1,131 +1,120 @@
-///////////////////////////////////////////////////////////////////////////////
-//
-// This file is part of sc4-disable-fps-limits, a DLL Plugin
-// for SimCity 4 that disables the default FPS limitation while the simulation
-// is running in Turtle (slow simulation, 30 FPS), Rhino (medium
-// simulation, 20 FPS) and Cheetah (fast simulation , 15 FPS) speed.
-// 
-// Copyright (c) 2024 Casper Van Gheluwe
-// Heavily inspired by sc4-disable-network-construction-sounds by Nicolas Hayes
-//
-// This file is licensed under terms of the MIT License.
-// See LICENSE.txt for more information.
-//
-///////////////////////////////////////////////////////////////////////////////
-
-#include "version.h"
 #include "Logger.h"
 #include "SC4VersionDetection.h"
+#include "Settings.h"
+#include "version.h"
 
 #include "cIGZCOM.h"
 #include "cIGZFrameWork.h"
 #include "cRZCOMDllDirector.h"
 
 #include <filesystem>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 #include <Windows.h>
-#include "wil/resource.h"
-#include "wil/win32_helpers.h"
 
-static constexpr uint32_t kDisableFpsLimitsDirectorID = 0xCA500002;
+static constexpr auto kDisableFpsLimitsDirectorID = 0x63AC6B81;
 
-static constexpr std::string_view PluginLogFileName = "SC4DisableFpsLimit.log";
+static constexpr std::string_view PluginSettingsFileName = "SC4DisableFpsLimits.ini";
 
-namespace
-{
-	std::filesystem::path GetDllFolderPath()
-	{
-		wil::unique_cotaskmem_string modulePath = wil::GetModuleFileNameW(wil::GetModuleInstanceHandle());
+namespace {
+    std::wstring GetModulePath(HMODULE moduleHandle) {
+        std::vector<wchar_t> pathBuffer(MAX_PATH);
 
-		std::filesystem::path temp(modulePath.get());
+        while (true) {
+            DWORD copiedLength =
+                GetModuleFileNameW(moduleHandle, pathBuffer.data(), static_cast<DWORD>(pathBuffer.size()));
+            if (copiedLength == 0) {
+                throw std::runtime_error("GetModuleFileNameW failed.");
+            }
+            if (copiedLength < pathBuffer.size() - 1) {
+                return std::wstring(pathBuffer.data(), copiedLength);
+            }
 
-		return temp.parent_path();
-	}
+            pathBuffer.resize(pathBuffer.size() * 2);
+        }
+    }
 
-	void OverwriteMemory(uintptr_t address, uint8_t newValue)
-	{
-		DWORD oldProtect;
-		// Allow the executable memory to be written to.
-		THROW_IF_WIN32_BOOL_FALSE(VirtualProtect(
-			reinterpret_cast<LPVOID>(address),
-			sizeof(newValue),
-			PAGE_EXECUTE_READWRITE,
-			&oldProtect));
+    std::filesystem::path GetDllFolderPath() {
+        HMODULE moduleHandle = nullptr;
+        if (!GetModuleHandleExW(
+                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                reinterpret_cast<LPCWSTR>(&GetDllFolderPath),
+                &moduleHandle)) {
+            throw std::runtime_error("GetModuleHandleExW failed.");
+        }
+        const std::filesystem::path temp(GetModulePath(moduleHandle));
 
-		// Patch the memory at the specified address.
-		*((uint8_t*)address) = newValue;
-	}
+        return temp.parent_path();
+    }
 
-	void DisableFpsLimits()
-	{
-		Logger& logger = Logger::GetInstance();
+    void OverwriteMemory(uintptr_t address, uint8_t newValue) {
+        DWORD oldProtect;
+        // Allow the executable memory to be written to.
+        if (!VirtualProtect(reinterpret_cast<LPVOID>(address), sizeof(newValue), PAGE_EXECUTE_READWRITE, &oldProtect)) {
+            throw std::runtime_error("VirtualProtect failed.");
+        }
 
-		const uint16_t gameVersion = SC4VersionDetection::GetInstance().GetGameVersion();
+        // Patch the memory at the specified address.
+        *((uint8_t*)address) = newValue;
+    }
 
-		if (gameVersion == 641)
-		{
-			try
-			{
-				// Original instruction:	0xC786840000000f000 (MOV dword ptr [ESI  + 0x84], 0xf)
-				// New instruction:			0xC78684000000ff000 (MOV dword ptr [ESI  + 0x84], 0xff)
+    void DisableFpsLimits(uint8_t maxFps) {
+        const uint16_t gameVersion = SC4VersionDetection::GetInstance().GetGameVersion();
 
-				logger.WriteLine(LogLevel::Info, "Attempting to overwrite memory");
+        if (gameVersion == 641) {
+            try {
+                // Original instruction:	0xC786840000000f000 (MOV dword ptr [ESI  + 0x84], 0xf)
+                // New instruction:			0xC78684000000ff000 (MOV dword ptr [ESI  + 0x84], 0xff)
 
-				OverwriteMemory(0x70244a, 0xFF);
-				OverwriteMemory(0x702457, 0xFF);
-				OverwriteMemory(0x702462, 0xFF);
+                LOG_INFO("Attempting to overwrite memory");
 
-				logger.WriteLine(LogLevel::Info, "Disabled the FPS limits during simulation.");
-			}
-			catch (const std::exception& e)
-			{
-				logger.WriteLineFormatted(
-					LogLevel::Error,
-					"Failed to disable the FPS limits: %s",
-					e.what());
-			}
-		}
-		else
-		{
-			logger.WriteLineFormatted(
-				LogLevel::Error,
-				"Unable to disable the FPS limits. Requires "
-				"game version 641, found game version %d.",
-				gameVersion);
-		}
-	}
-}
+                OverwriteMemory(0x70244a, maxFps);
+                OverwriteMemory(0x702457, maxFps);
+                OverwriteMemory(0x702462, maxFps);
 
-class DisableFpsLimitsDllDirector final : public cRZCOMDllDirector
-{
+                LOG_INFO("Disabled the FPS limits during simulation. MaxFPS={}", static_cast<unsigned int>(maxFps));
+            }
+            catch (const std::exception& e) {
+                LOG_ERROR("Failed to disable the FPS limits: {}", e.what());
+            }
+        }
+        else {
+            LOG_ERROR("Unable to disable the FPS limits. Requires game version 641, found game version {}.",
+                      gameVersion);
+        }
+    }
+} // namespace
+
+class DisableFpsLimitsDllDirector final : public cRZCOMDllDirector {
 public:
+    DisableFpsLimitsDllDirector() {
+        std::filesystem::path dllFolderPath = GetDllFolderPath();
+        Logger::Initialize("SC4DisableFpsLimits", dllFolderPath);
+        LOG_INFO("SC4DisableFpsLimits v{} loaded.", PLUGIN_VERSION_STR);
 
-	DisableFpsLimitsDllDirector()
-	{
-		std::filesystem::path dllFolderPath = GetDllFolderPath();
+        std::filesystem::path settingsFilePath = dllFolderPath;
+        settingsFilePath /= PluginSettingsFileName;
+        settings_.Load(settingsFilePath);
+        Logger::SetLevel(settings_.GetLogLevel());
+        LOG_INFO("Configured settings: MaxFPS={}, LogLevel={}", settings_.GetMaxFps(),
+                 spdlog::level::to_short_c_str(settings_.GetLogLevel()));
+    }
 
-		std::filesystem::path logFilePath = dllFolderPath;
-		logFilePath /= PluginLogFileName;
+    uint32_t GetDirectorID() const override { return kDisableFpsLimitsDirectorID; }
 
-		Logger& logger = Logger::GetInstance();
-		logger.Init(logFilePath, LogLevel::Error, false);
-		logger.WriteLogFileHeader("SC4DisableFpsLimits v" PLUGIN_VERSION_STR);
-	}
+    bool OnStart(cIGZCOM* pCOM) override {
+        DisableFpsLimits(settings_.GetMaxFps());
 
-	uint32_t GetDirectorID() const
-	{
-		return kDisableFpsLimitsDirectorID;
-	}
+        return true;
+    }
 
-	bool OnStart(cIGZCOM* pCOM)
-	{
-		DisableFpsLimits();
-
-		return true;
-	}
+private:
+    Settings settings_;
 };
 
 cRZCOMDllDirector* RZGetCOMDllDirector() {
-	static DisableFpsLimitsDllDirector sDirector;
-	return &sDirector;
+    static DisableFpsLimitsDllDirector sDirector;
+    return &sDirector;
 }

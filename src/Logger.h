@@ -1,54 +1,31 @@
-///////////////////////////////////////////////////////////////////////////////
-//
-// This file is part of sc4-disable-network-construction-sounds, a DLL Plugin
-// for SimCity 4 that disables the sounds that are played during the network
-// construction animation.
-//
-// Copyright (c) 2024 Nicholas Hayes
-//
-// This file is licensed under terms of the MIT License.
-// See LICENSE.txt for more information.
-//
-///////////////////////////////////////////////////////////////////////////////
-
 #pragma once
 #include <filesystem>
-#include <fstream>
+#include <memory>
+#include <string>
 
-enum class LogLevel : int32_t
-{
-	Info = 0,
-	Error = 1,
-	Debug = 2,
-	Trace = 3
-};
+#include <spdlog/spdlog.h>
 
-class Logger
-{
+class Logger {
 public:
+    static std::shared_ptr<spdlog::logger> Get();
 
-	static Logger& GetInstance();
+    static void Initialize(const std::string& logName = "SC4DisableFpsLimits",
+                           const std::filesystem::path& logDirectory = {},
+                           spdlog::level::level_enum logLevel = spdlog::level::info);
 
-	void Init(std::filesystem::path logFilePath, LogLevel logLevel, bool includeTimeStamp = true);
+    static void SetLevel(spdlog::level::level_enum logLevel);
 
-	bool IsEnabled(LogLevel option) const;
-
-	void WriteLogFileHeader(const char* const message);
-
-	void WriteLine(LogLevel level, const char* const message);
-
-	void WriteLineFormatted(LogLevel level, const char* const format, ...);
+    static void Shutdown();
 
 private:
-
-	Logger();
-	~Logger();
-
-	void WriteLineCore(const char* const message);
-
-	bool initialized;
-	bool writeTimeStamp;
-	LogLevel logLevel;
-	std::ofstream logFile;
+    static std::shared_ptr<spdlog::logger> s_logger;
+    static bool s_initialized;
+    static std::string s_logName;
 };
 
+#define LOG_TRACE(...) Logger::Get()->trace(__VA_ARGS__)
+#define LOG_DEBUG(...) Logger::Get()->debug(__VA_ARGS__)
+#define LOG_INFO(...) Logger::Get()->info(__VA_ARGS__)
+#define LOG_WARN(...) Logger::Get()->warn(__VA_ARGS__)
+#define LOG_ERROR(...) Logger::Get()->error(__VA_ARGS__)
+#define LOG_CRITICAL(...) Logger::Get()->critical(__VA_ARGS__)
