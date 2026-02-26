@@ -92,6 +92,7 @@ if (MSVC)
         PRIVATE
             /W3
             /EHsc
+            /utf-8
             /permissive-
     )
     target_compile_options(
@@ -99,6 +100,7 @@ if (MSVC)
         PRIVATE
             /W3
             /EHsc
+            /utf-8
             /permissive-
     )
 endif ()
