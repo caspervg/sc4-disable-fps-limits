@@ -21,7 +21,8 @@ The plugin may work on Windows 7 or later with the [Microsoft Visual C++ 2022 x8
 ## Installation
 
 1. Close SimCity 4.
-2. Copy `SC4DisableFpsLimits.dll` into the Plugins folder in the SimCity 4 installation directory.
+2. Copy `SC4DisableFpsLimits.dll` and `SC4DisableFpsLimits.ini` into:
+   * `<My Documents>/SimCity 4/Plugins`
 3. Start SimCity 4.
 
 ## Troubleshooting

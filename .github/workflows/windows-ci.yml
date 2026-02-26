@@ -1,0 +1,86 @@
+name: Windows CI
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "4.1.2"
+
+      - name: Configure (Win32)
+        run: cmake --preset vs2022-win32
+
+      - name: Build (Debug)
+        run: cmake --build --preset debug
+
+      - name: Build (Release)
+        run: cmake --build --preset release
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "4.1.2"
+
+      - name: Configure (Win32)
+        run: cmake --preset vs2022-win32
+
+      - name: Build (Release)
+        run: cmake --build --preset release
+
+      - name: Package Release Zip
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $buildDir = Join-Path $env:GITHUB_WORKSPACE "build/Release"
+          $dllPath = Join-Path $buildDir "SC4DisableFpsLimits.dll"
+
+          if (!(Test-Path $dllPath)) {
+            throw "Expected DLL not found at $dllPath"
+          }
+
+          $outDir = Join-Path $env:GITHUB_WORKSPACE "artifacts"
+          $pkgDir = Join-Path $outDir "SC4DisableFpsLimits"
+          New-Item -ItemType Directory -Path $pkgDir -Force | Out-Null
+
+          Copy-Item $dllPath (Join-Path $pkgDir "SC4DisableFpsLimits.dll") -Force
+          Copy-Item (Join-Path $env:GITHUB_WORKSPACE "README.md") (Join-Path $pkgDir "README.md") -Force
+          Copy-Item (Join-Path $env:GITHUB_WORKSPACE "SC4DisableFpsLimits.ini") (Join-Path $pkgDir "SC4DisableFpsLimits.ini") -Force
+
+          $archive = Join-Path $outDir ("sc4-disable-fps-limits-" + "${{ github.ref_name }}" + "-win32-release.zip")
+          if (Test-Path $archive) {
+            Remove-Item $archive -Force
+          }
+          Compress-Archive -Path (Join-Path $pkgDir "*") -DestinationPath $archive -Force
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.zip

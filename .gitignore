@@ -364,3 +364,5 @@ FodyWeavers.xsd
 
 # vcpkg repository build files
 vcpkg_installed/
+.idea/
+*.iml
