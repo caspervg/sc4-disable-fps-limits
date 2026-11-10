@@ -81,6 +81,16 @@ jobs:
           Compress-Archive -Path (Join-Path $pkgDir "*") -DestinationPath $archive -Force
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: artifacts/*.zip
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          # The action publishes prereleases before uploading assets, which immutable releases reject.
+          # Keep them as drafts and publish below once the assets are in.
+          draft: ${{ contains(github.ref_name, '-') }}
+
+      - name: Publish prerelease
+        if: contains(github.ref_name, '-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft=false
