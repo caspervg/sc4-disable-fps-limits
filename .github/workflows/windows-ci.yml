@@ -9,17 +9,20 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           submodules: recursive
 
       - name: Setup CMake
-        uses: lukka/get-cmake@latest
+        uses: lukka/get-cmake@f86dd60acae0d132056913e248bdabf0e0580b7a # v4.4.5
         with:
           cmakeVersion: "4.1.2"
 
@@ -32,19 +35,38 @@ jobs:
       - name: Build (Release)
         run: cmake --build --preset release
 
+  validate-tag:
+    name: Validate Release Tag
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate version tag
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "Release tags must match vMAJOR.MINOR.PATCH[-PRERELEASE], for example v1.0.0 or v1.0.0-rc.1. Got: $TAG_NAME"
+            exit 1
+          fi
+
   release:
     if: startsWith(github.ref, 'refs/tags/')
+    needs: validate-tag
     runs-on: windows-latest
     permissions:
       contents: write
+      # For the signed attestations.
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           submodules: recursive
 
       - name: Setup CMake
-        uses: lukka/get-cmake@latest
+        uses: lukka/get-cmake@f86dd60acae0d132056913e248bdabf0e0580b7a # v4.4.5
         with:
           cmakeVersion: "4.1.2"
 
@@ -53,6 +75,14 @@ jobs:
 
       - name: Build (Release)
         run: cmake --build --preset release
+
+      - name: Generate SBOM (SPDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          file: build/Release/SC4DisableFpsLimits.dll
+          format: spdx-json
+          output-file: SC4DisableFpsLimits.spdx.json
+          upload-artifact: false
 
       - name: Package Release Zip
         shell: pwsh
@@ -73,6 +103,7 @@ jobs:
           Copy-Item $dllPath (Join-Path $pkgDir "SC4DisableFpsLimits.dll") -Force
           Copy-Item (Join-Path $env:GITHUB_WORKSPACE "README.md") (Join-Path $pkgDir "README.md") -Force
           Copy-Item (Join-Path $env:GITHUB_WORKSPACE "SC4DisableFpsLimits.ini") (Join-Path $pkgDir "SC4DisableFpsLimits.ini") -Force
+          Copy-Item (Join-Path $env:GITHUB_WORKSPACE "SC4DisableFpsLimits.spdx.json") (Join-Path $pkgDir "SC4DisableFpsLimits.spdx.json") -Force
 
           $archive = Join-Path $outDir ("sc4-disable-fps-limits-" + "${{ github.ref_name }}" + "-win32-release.zip")
           if (Test-Path $archive) {
@@ -80,10 +111,30 @@ jobs:
           }
           Compress-Archive -Path (Join-Path $pkgDir "*") -DestinationPath $archive -Force
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v3
+      # Build provenance: proves that this workflow built these files from this commit. Check a download
+      # with `gh attestation verify <file> --repo ${{ github.repository }}`.
+      - name: Attest build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          files: artifacts/*.zip
+          subject-path: |
+            artifacts/*.zip
+            build/Release/SC4DisableFpsLimits.dll
+
+      # Links the SBOM to the DLL and the zip.
+      - name: Attest SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            artifacts/*.zip
+            build/Release/SC4DisableFpsLimits.dll
+          sbom-path: SC4DisableFpsLimits.spdx.json
+
+      - name: Create Release
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
+        with:
+          files: |
+            artifacts/*.zip
+            SC4DisableFpsLimits.spdx.json
           prerelease: ${{ contains(github.ref_name, '-') }}
           # The action publishes prereleases before uploading assets, which immutable releases reject.
           # Keep them as drafts and publish below once the assets are in.
